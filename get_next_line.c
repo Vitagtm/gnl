@@ -5,188 +5,200 @@
 # include <stdlib.h> // calloc y free. Me dejo todas las defs por aquí temporalmente. Después arreglo el .h
 #define BUFFER_SIZE 42
 
-size_t	ft_strlen(const char *s)
+#include "get_next_line.h"
+
+size_t	ft_strlen(const char *str)
 {
 	size_t	i;
 
 	i = 0;
-	while (s[i])
+	if (str == NULL)
+		return (0);
+	while (str[i] != '\0')
 	{
 		i++;
 	}
 	return (i);
 }
-void	*ft_calloc(size_t count, size_t size)
-{
-	unsigned char *temp;
-	size_t i;
-	i = 0;
-	temp = malloc(count * size);
 
-	if (!temp)
-		return (NULL);
-	while (i < count * size)
-	{
-		temp[i++] = 0;
-	}
-	return (temp);
-}
 char	*ft_strchr(const char *s, int c)
 {
-	size_t i;
-	i = 0;
+	int	i;
 
-	while (s[i])
+	i = 0;
+	if (s == NULL)
+		return (NULL);
+	while (s[i] != '\0')
 	{
-		if (s[i] == (char)c)
-		{
+		if ((char)c == s[i])
 			return ((char *)&s[i]);
-		}
 		i++;
 	}
 	if ((char)c == '\0')
 		return ((char *)&s[i]);
-	else
-		return (NULL);
+	return (NULL);
 }
 
-char	*ft_strjoin(char const *s1, char const *s2)
+char	*ft_substr(const char *s, unsigned int start, size_t len)
 {
-	char *str;
-	int i;
-	int j;
+	size_t	s_len;
+	char	*substr;
+	size_t	i;
 
-	if (!s1 || !s2)
+	s_len = ft_strlen(s);
+	if (s == NULL)
+		return (NULL);
+	i = 0;
+	while (s[i] != '\0')
+		i++;
+	if (start >= s_len)
+		len = 0;
+	else if (start + len > s_len)
+		len = s_len - start;
+	substr = (char *)malloc((len + 1) * sizeof(char));
+	if (substr == NULL)
+		return (NULL);
+	i = 0;
+	while (i < len && s[start + i] != '\0')
+	{
+		substr[i] = s[start + i];
+		i++;
+	}
+	substr[i] = '\0';
+	return (substr);
+}
+
+void	*ft_calloc(size_t nmemb, size_t size)
+{
+	unsigned char	*p;
+	size_t			i;
+
+	p = malloc(size * nmemb);
+	if (p == NULL)
+		return (NULL);
+	i = 0;
+	while (i < (size * nmemb))
+	{
+		p[i] = 0;
+		i++;
+	}
+	return ((void *)p);
+}
+
+char	*ft_strjoin(char *s1, char *s2)
+{
+	int		size_s1;
+	int		size_s2;
+	char	*str;
+	int		i;
+	int		j;
+
+	size_s1 = ft_strlen(s1);
+	size_s2 = ft_strlen(s2);
+	str = malloc(sizeof(char) * (size_s1 + size_s2 + 1));
+	if (str == NULL)
 		return (NULL);
 	i = 0;
 	j = 0;
-	str = ft_calloc(ft_strlen(s1) + ft_strlen(s2) + 1, sizeof(char));
-	if (!str)
-		return (NULL);
-	while (s1[i])
-	{
-		str[i] = s1[i];
-		i++;
-	}
-	while (s2[j])
+	while (i < size_s1)
+		str[i++] = s1[j++];
+	j = 0;
+	while (j < size_s2)
 		str[i++] = s2[j++];
+	str[i] = '\0';
+	free(s1);
 	return (str);
 }
-void *ft_realloc(char *to_reall, int len)
+static void *final_line(char **line, char **previous_line)
 {
-	char *temp;
-	unsigned int i;
+	int i;
+	char * temp;
 	i = 0;
-	
-	if (!to_reall)
-		return(to_reall = ft_calloc(len + 1, sizeof(char)));
-	temp = ft_calloc(ft_strlen(to_reall) + len + 1, sizeof(char));
-	if (!temp)
-		return (NULL);
-	while(to_reall[i])
-	{
-		temp[i] = to_reall[i];
+	while((*previous_line)[i] != '\n' && (*previous_line)[i] != '\0')
 		i++;
+	if((*previous_line)[i])
+		i++;
+	*line = ft_substr(*previous_line, 0, i);
+	if((*previous_line)[i])
+	{
+		temp = ft_substr(*previous_line, i, (ft_strlen(*previous_line) - i));
+		free(*previous_line);
+		*previous_line = temp;
 	}
-	temp[i] = 0;
-	free(to_reall);
-	return(temp);
+	else
+	{
+		free(*previous_line);
+		*previous_line = NULL;
+	}
+	
+	
+		
+}
+char *create_line(char* previous_line, int fd)
+{
+	char *buffer;
+	int bytes_read;
+	bytes_read = 1;
+	buffer = ft_calloc(BUFFER_SIZE + 1, sizeof(char));
+	
+	if(!buffer)
+		return NULL;
+	while(!ft_strchr(previous_line, '\n') && bytes_read != 0)
+	{
+		bytes_read = read(fd, buffer, BUFFER_SIZE);
+		if(bytes_read == 0)
+			break;
+		if(bytes_read == -1)
+		{
+			free(buffer);
+			free(previous_line);
+			return NULL;
+		}
+		buffer[bytes_read] = '\0';
+		previous_line=ft_strjoin(previous_line, buffer);
+		if(!previous_line)
+			return(free(buffer), free(previous_line), NULL);
+	}
+		free(buffer);
+		return (previous_line);
 }
 
 static char *get_next_line(int fd)
 {
-	ssize_t bytes_read;
-	char *next_line;
-	static char *part_line;
-	char *temp_buffer;
-	unsigned int i;
-	unsigned int j;
+	char *line;
+	static char *previous_line;
 
-	next_line = NULL;
-	temp_buffer = NULL;
-	i = 0;
-	j = 0;
-	if(part_line != NULL)
-	{
-		temp_buffer = ft_realloc(temp_buffer, ft_strlen(part_line));
-		if(!temp_buffer)
-			return (NULL);
-		temp_buffer = ft_strjoin(temp_buffer, part_line);
-		free(part_line);
-	}
-	part_line = NULL;
-	temp_buffer = ft_realloc(temp_buffer, BUFFER_SIZE);
-	if(!temp_buffer)
-		return (NULL);
-
-	bytes_read = read(fd, temp_buffer, BUFFER_SIZE);
-	if(bytes_read <= 0)
-	{
-		free(temp_buffer);
+	line = NULL;
+	if(fd == -1)
 		return(NULL);
-	}
-	while(!ft_strchr(temp_buffer, '\n') && bytes_read > 0)
-	{
-		temp_buffer = ft_realloc(temp_buffer, BUFFER_SIZE);
-		if(!temp_buffer)
-			return (NULL);
-		bytes_read = read(fd, temp_buffer + ft_strlen(temp_buffer), BUFFER_SIZE);
-	}
-
-	while(temp_buffer[i] && temp_buffer[i] != '\n')
-		i++;
-
-	next_line = ft_calloc(i + 2, sizeof(char));//1 '\n' 1 '\0'
-	if(!next_line)
-	{
-		free(temp_buffer);
+	previous_line = create_line(previous_line, fd);
+	if(!previous_line)
 		return (NULL);
-	}
-	i = 0;
-	while(temp_buffer[i] && temp_buffer[i] != '\n')
-	{
-		next_line[i] = temp_buffer[i];
-		i++;
-	}
-	if(temp_buffer[i] == '\n')
-		next_line[i++] = '\n';
-	next_line[i] = '\0';
-
-	part_line = ft_calloc(ft_strlen(temp_buffer) - i + 1, sizeof(char));
-	if(!part_line)
-	{
-		free(next_line);
-		free(temp_buffer);
-		return NULL;
-	}
-	while(temp_buffer[i])
-		part_line[j++] = temp_buffer[i++];
-	part_line[j] = 0;
-	free(temp_buffer);
-	return (next_line);	
+	final_line(&line, &previous_line);
+	return(line);
 }
 
-
-int main ()
+int main()
 {
-	int line_count;
 	int fd;
 	char *line;
-	line_count = 0;
+	int i;
+	i = 0;
+
 	fd = open("shrek.txt", O_RDONLY);
-	if(fd == -1)
-		return(1);
-	while(fd != 0)
+	if (fd == -1)
 	{
-		line = get_next_line(fd);
-		if(line != NULL)
-		{
-			printf("[%d]:%s\n", line_count, line);
-			free(line);
-		}
-		line_count++;
+		printf("Error abriendo el archivo\n");
+		return (1);
 	}
-	close((int)fd);
-	line_count++;
+	line = get_next_line(fd);
+	while (line)
+	{
+		printf("[%d]%s", i, line);
+		free(line);
+		line = get_next_line(fd);
+		i++;
+	}
+	close(fd);
 	return (0);
 }
